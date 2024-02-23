@@ -356,8 +356,11 @@ weights[6] = 100
 #
 # Step-1 Train NeoHookean
 #
-mu = dde.Variable(4.0) #truth 1.0
-lam_load = dde.Variable(7.0) #truth 3.0
+mu = dde.Variable(3.0) #truth 1.0
+lam_load = dde.Variable(1.0) #truth 3.0
+#
+model.compile("adam", lr=0.001,loss_weights = weights)
+model.train(iterations=10000,display_every = 1000)
 #
 model.compile("adam", lr=0.001,external_trainable_variables=[mu,lam_load],loss_weights = weights)
 variable = dde.callbacks.VariableValue([mu,lam_load], period=100,filename="variable_history",precision=9)
