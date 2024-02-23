@@ -1,5 +1,7 @@
 # Siyuan Song. Sep.11.2023
 #
+from sys import path
+path.insert(0,r"..\..\..\lib\deepxde")
 import deepxde as dde
 import numpy as np
 from matplotlib import pyplot as plt
