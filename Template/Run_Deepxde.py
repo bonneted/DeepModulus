@@ -10,11 +10,10 @@ import pandas as pd
 from matplotlib.pyplot import figure, axes, plot, xlabel, ylabel, title, grid, savefig, show,gca
 import matplotlib.ticker as ticker
 #
-#torch backend
-if dde.backend == "pytorch":
-    bckd = dde.backend.pytorch
+if dde.backend.backend_name == "pytorch":
+    bkd = dde.backend.pytorch
 else:
-    bckd = dde.backend.tensorflow
+    bkd = dde.backend.tensorflow
 import random
 import time
 #
@@ -37,7 +36,7 @@ def transform(x, y):
     ratio_inv = 1/ratio
     new_x1 = (X1 + 1.0) * (X1 - 1.0) * y[:, 0:1] + (X1 + 1.0) * ratio - 1.0
     new_x2 = (X1 + 1.0) * (X1 - 1.0) * y[:, 1:2] + X2
-    return bckd.concat([new_x1,new_x2,y[:, 2:3]], axis=1)
+    return bkd.concat([new_x1,new_x2,y[:, 2:3]], axis=1)
 #
 # Determine the position of the integration points for the domain integral
 #
@@ -267,7 +266,7 @@ def bc_func(x, y, X):
     P21 = ( p*F12*F33 + coe*F21)
     P22 = (-p*F11*F33 + coe*F22)
     #
-    return bckd.sqrt(P12**2 + P22**2)
+    return bkd.sqrt(P12**2 + P22**2)
 #
 def bc_func_inner(x, y, X):
     #
@@ -297,7 +296,7 @@ def bc_func_inner(x, y, X):
     #
     n1 = x[:,0:1]
     n2 = x[:,1:2]
-    return bckd.sqrt((n1 * P11 + n2 * P12)**2 + (n1 * P21 + n2 * P22)**2)/0.15
+    return bkd.sqrt((n1 * P11 + n2 * P12)**2 + (n1 * P21 + n2 * P22)**2)/0.15
 #
 def func_total_force(x, y, X):
     #
