@@ -12,8 +12,14 @@ import matplotlib.ticker as ticker
 #
 if dde.backend.backend_name == "pytorch":
     bkd = dde.backend.pytorch
+    import torch
+    sqrt = torch.sqrt
+
 else:
     bkd = dde.backend.tensorflow
+    import tensorflow as tf
+    sqrt = tf.sqrt
+
 import random
 import time
 #
@@ -266,7 +272,7 @@ def bc_func(x, y, X):
     P21 = ( p*F12*F33 + coe*F21)
     P22 = (-p*F11*F33 + coe*F22)
     #
-    return bkd.sqrt(P12**2 + P22**2)
+    return sqrt(P12**2 + P22**2)
 #
 def bc_func_inner(x, y, X):
     #
@@ -296,7 +302,7 @@ def bc_func_inner(x, y, X):
     #
     n1 = x[:,0:1]
     n2 = x[:,1:2]
-    return bkd.sqrt((n1 * P11 + n2 * P12)**2 + (n1 * P21 + n2 * P22)**2)/0.15
+    return sqrt((n1 * P11 + n2 * P12)**2 + (n1 * P21 + n2 * P22)**2)/0.15
 #
 def func_total_force(x, y, X):
     #
