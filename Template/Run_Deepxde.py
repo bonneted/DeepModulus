@@ -330,12 +330,12 @@ def boundary_speckle_x(x, y, X):
     return y[:,0:1]
 def boundary_speckle_y(x, y, X):
     return y[:,1:2]
-bc_upper_lower = dde.PointSetOperatorBC(points_upper_lower,bc_func,value_upper_lower)
+bc_upper_lower = dde.PointSetOperatorBC(points_upper_lower,value_upper_lower,bc_func)
 #
 bc_right_force = dde.IntegralBC(points_force,func_total_force,value_force,num_time,num_points_force)
 #
-bc_speckle_x   = dde.PointSetOperatorBC(inner_speckle_list,boundary_speckle_x,inner_speckle_list_value_x)
-bc_speckle_y   = dde.PointSetOperatorBC(inner_speckle_list,boundary_speckle_y,inner_speckle_list_value_y)
+bc_speckle_x   = dde.PointSetOperatorBC(inner_speckle_list,inner_speckle_list_value_x,boundary_speckle_x)
+bc_speckle_y   = dde.PointSetOperatorBC(inner_speckle_list,inner_speckle_list_value_y,boundary_speckle_y)
 #
 data = dde.data.TimePDE(spatio_temporal_domain, pde, [bc_upper_lower,bc_speckle_x,bc_speckle_y,bc_right_force], num_domain=20000, num_boundary=0,num_initial=0, num_test=2000)
 #
