@@ -359,16 +359,16 @@ weights[6] = 100
 #
 # Step-1 Train NeoHookean
 #
-mu = dde.Variable(3.0) #truth 1.0
-lam_load = dde.Variable(1.0) #truth 3.0
+mu = dde.Variable(mu_start) #truth 1.0
+lam_load = dde.Variable(lam_load_start) #truth 3.0
 #
-model.compile("adam", lr=0.001,loss_weights = weights)
-model.train(iterations=10000,display_every = 1000)
+# model.compile("adam", lr=0.001,loss_weights = weights)
+# model.train(iterations=10000,display_every = 1000)
 #
 model.compile("adam", lr=0.001,external_trainable_variables=[mu,lam_load],loss_weights = weights)
 variable = dde.callbacks.VariableValue([mu,lam_load], period=100,filename="variable_history",precision=9)
 #
-model.train(iterations=num_epochs,display_every = 1000, callbacks=[variable])
+model.train(iterations=num_epochs,display_every = 100, callbacks=[variable])
 model.save("Siyuan_AUG_12")
 #
 np.save("train_x.npy",data.train_x)
@@ -379,5 +379,4 @@ np.save("test_x.npy",data.test_x)
 np.save("steps.npy",model.losshistory.steps)
 np.save("loss_train.npy",model.losshistory.loss_train)
 np.save("loss_test.npy",model.losshistory.loss_test)
-np.save("loss_weights.npy",model.losshistory.loss_weights)
-#
+np.save("loss_weights.npy",weights)
