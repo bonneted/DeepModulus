@@ -1,8 +1,8 @@
 # Siyuan Song. Sep.11.2023
 #
 from sys import path
-path.insert(0,r"..\..\..\lib\deepxde")
 import deepxde as dde
+import deepxde.backend as bkd
 import numpy as np
 from matplotlib import pyplot as plt
 #
@@ -11,14 +11,17 @@ from matplotlib.pyplot import figure, axes, plot, xlabel, ylabel, title, grid, s
 import matplotlib.ticker as ticker
 #
 if dde.backend.backend_name == "pytorch":
-    bkd = dde.backend.pytorch
     import torch
     sqrt = torch.sqrt
 
-else:
-    bkd = dde.backend.tensorflow
+elif dde.backend.backend_name == "tensorflow":
     import tensorflow as tf
     sqrt = tf.sqrt
+elif dde.backend.backend_name == "jax":
+    import jax
+    sqrt = jax.numpy.sqrt
+else:
+    raise Exception("Unsupported backend")
 
 import random
 import time
