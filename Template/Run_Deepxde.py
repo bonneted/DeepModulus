@@ -1,3 +1,8 @@
+noise = 0 # noise level, 10%. 
+num_epochs = 8000 # number of training epochs.
+num_speckle = 200 # number of speckles.
+num_test = 1 # number of tests.
+
 # Siyuan Song. Sep.11.2023
 #
 from sys import path
@@ -27,11 +32,28 @@ import random
 import time
 #
 import math
+import functools
+
+def reshape_decorator(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        reshaped_args = []
+        for arg in args:
+            if isinstance(arg, np.ndarray) and arg.ndim == 1:
+                reshaped_args.append(arg.reshape(1, -1))
+            else:
+                reshaped_args.append(arg)
+        result = func(*reshaped_args, **kwargs)
+        if isinstance(result, np.ndarray) and result.ndim == 1:
+            result = result.squeeze()
+        return result
+    return wrapper
+
 #
 # Stretch Ratio
 stretch = 2.5
 #
-force_data = pd.read_csv('../Data/Force.csv')
+force_data = pd.read_csv('./Data/Force.csv')
 time_list = force_data["Time"]
 force_list = force_data["Force"]
 num_time = len(time_list)
@@ -100,7 +122,7 @@ value_upper_lower  = np.array(value_upper_lower)
 #
 # Step-2 Read the FEM information
 # Compare the displacement field. Let the two deformed shape together.
-folder_address = "../Data/"
+folder_address = "./Data/"
 dic_node= np.load(folder_address+"dic_node.npy",allow_pickle=True,encoding='bytes').item()
 dic_connectivity = np.load(folder_address+"dic_connectivity.npy",allow_pickle=True,encoding='bytes').item()
 dic_displacement = []
@@ -216,9 +238,10 @@ spatial_domain = outer - inner_0 - inner_1 - inner_2 - inner_3
 temporal_domain = dde.geometry.TimeDomain(0.0, 1.0)
 spatio_temporal_domain = dde.geometry.GeometryXTime(spatial_domain, temporal_domain)
 #
-def pde(x, y):
+def pde_not_jax(x, y):
     #
-    F33   = y[:,2:3]
+    F33 = y[:,2:3]
+
     F11 = dde.grad.jacobian(y, x, i=0, j=0)
     F12 = dde.grad.jacobian(y, x, i=0, j=1)
     F21 = dde.grad.jacobian(y, x, i=1, j=0)
@@ -245,17 +268,66 @@ def pde(x, y):
     BoF1 = dde.grad.jacobian(P11, x, i=0, j=0) + dde.grad.jacobian(P12, x, i=0, j=1)
     BoF2 = dde.grad.jacobian(P21, x, i=0, j=0) + dde.grad.jacobian(P22, x, i=0, j=1)
     return [incom,BoF1,BoF2]
+
+@reshape_decorator
+def pde_jax(x, y):
+    #
+    F33 = y[0][:,2:3]
+    F33_func = lambda x: y[1](x)[2:3]
+
+    F11, F11_func = dde.grad.jacobian(y, x, i=0, j=0)
+    F12, F12_func = dde.grad.jacobian(y, x, i=0, j=1)
+    F21, F21_func = dde.grad.jacobian(y, x, i=1, j=0)
+    F22, F22_func = dde.grad.jacobian(y, x, i=1, j=1)
+    #
+    incom = (F22*F11 - F21*F12)*F33 - 1
+    #
+    I1 = F11* F11 + F21* F21 + F12* F12 + F22* F22 + F33 * F33
+    I1_func = lambda x: F11_func(x)* F11_func(x) + F21_func(x)* F21_func(x) + F12_func(x)* F12_func(x) + F22_func(x)* F22_func(x) + F33_func(x) * F33_func(x)
+    #
+    coe0 = 2.0 * 0.5
+    coe1 = 2.0 * 2.0/(20.0*lam_load**2)
+    coe2 = 2.0 * 3.0 * 11.0/(1050*lam_load**4)
+    coe3 = 2.0 * 4.0 * 19.0/(7000*lam_load**6)
+    coe4 = 2.0 * 5.0 * 519/(673750*lam_load**8)
+    coe = (coe0+coe1*I1+coe2*(I1**2)+coe3*(I1**3)+coe4*(I1**4))
+    coe_func = lambda x: (coe0+coe1*I1_func(x)+coe2*(I1_func(x)**2)+coe3*(I1_func(x)**3)+coe4*(I1_func(x)**4))
+    #
+    p = coe * F33 * F33
+    p_func = lambda x: coe_func(x) * F33_func(x) * F33_func(x)
+    #
+    P11 = (-p*F22*F33 + coe*F11)
+    P11_func = lambda x: (-p_func(x)*F22_func(x)*F33_func(x) + coe_func(x)*F11_func(x))
+    P12 = ( p*F21*F33 + coe*F12)
+    P12_func = lambda x: ( p_func(x)*F21_func(x)*F33_func(x) + coe_func(x)*F12_func(x))
+    P21 = ( p*F12*F33 + coe*F21)
+    P21_func = lambda x: ( p_func(x)*F12_func(x)*F33_func(x) + coe_func(x)*F21_func(x))
+    P22 = (-p*F11*F33 + coe*F22)
+    P22_func = lambda x: (-p_func(x)*F11_func(x)*F33_func(x) + coe_func(x)*F22_func(x))
+    #
+    BoF1 = dde.grad.jacobian((P11, P11_func), x, i=0, j=0)[0] + dde.grad.jacobian((P12, P12_func), x, i=0, j=1)[0]
+    BoF2 = dde.grad.jacobian((P21, P21_func), x, i=0, j=0)[0] + dde.grad.jacobian((P22, P22_func), x, i=0, j=1)[0]
+    return [incom,BoF1,BoF2]
+
+pde = pde_jax if dde.backend.backend_name == "jax" else pde_not_jax
 #
 def boundary_upper_lower(x, on_boundary):
     return on_boundary and np.isclose(np.abs(x[1]), 0.5)  and (not np.isclose(np.abs(x[0]), 1.0))
 #
+def jacobian(f, x, i, j):
+    if dde.backend.backend_name == "jax":
+        return dde.grad.jacobian(f, x, i=i, j=j)[0]
+    else:
+        return dde.grad.jacobian(f, x, i=i, j=j)
+
+@reshape_decorator    
 def bc_func(x, y, X):
     #
-    F33   = y[:,2:3]
-    F11 = dde.grad.jacobian(y, x, i=0, j=0)
-    F12 = dde.grad.jacobian(y, x, i=0, j=1)
-    F21 = dde.grad.jacobian(y, x, i=1, j=0)
-    F22 = dde.grad.jacobian(y, x, i=1, j=1)
+    F33   = y[0][:,2:3] if dde.backend.backend_name == "jax" else y[:,2:3]
+    F11 = jacobian(y, x, i=0, j=0)
+    F12 = jacobian(y, x, i=0, j=1)
+    F21 = jacobian(y, x, i=1, j=0)
+    F22 = jacobian(y, x, i=1, j=1)
     #
     incom = (F22*F11 - F21*F12)*F33 - 1
     #
@@ -277,13 +349,14 @@ def bc_func(x, y, X):
     #
     return sqrt(P12**2 + P22**2)
 #
+@reshape_decorator
 def bc_func_inner(x, y, X):
     #
-    F33   = y[:,2:3]
-    F11 = dde.grad.jacobian(y, x, i=0, j=0)
-    F12 = dde.grad.jacobian(y, x, i=0, j=1)
-    F21 = dde.grad.jacobian(y, x, i=1, j=0)
-    F22 = dde.grad.jacobian(y, x, i=1, j=1)
+    F33   = y[0][:,2:3] if dde.backend.backend_name == "jax" else y[:,2:3]
+    F11 = jacobian(y, x, i=0, j=0)
+    F12 = jacobian(y, x, i=0, j=1)
+    F21 = jacobian(y, x, i=1, j=0)
+    F22 = jacobian(y, x, i=1, j=1)
     #
     incom = (F22*F11 - F21*F12)*F33 - 1
     #
@@ -307,13 +380,14 @@ def bc_func_inner(x, y, X):
     n2 = x[:,1:2]
     return sqrt((n1 * P11 + n2 * P12)**2 + (n1 * P21 + n2 * P22)**2)/0.15
 #
+@reshape_decorator
 def func_total_force(x, y, X):
     #
-    F33   = y[:,2:3]
-    F11 = dde.grad.jacobian(y, x, i=0, j=0)
-    F12 = dde.grad.jacobian(y, x, i=0, j=1)
-    F21 = dde.grad.jacobian(y, x, i=1, j=0)
-    F22 = dde.grad.jacobian(y, x, i=1, j=1)
+    F33   = y[0][:,2:3] if dde.backend.backend_name == "jax" else y[:,2:3]
+    F11 = jacobian(y, x, i=0, j=0)
+    F12 = jacobian(y, x, i=0, j=1)
+    F21 = jacobian(y, x, i=1, j=0)
+    F22 = jacobian(y, x, i=1, j=1)
     #
     incom = F22*F11 - F21*F12 - 1
     #
